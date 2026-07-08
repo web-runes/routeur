@@ -1,0 +1,38 @@
+{
+	"name": "@routeur/core",
+	"version": "0.0.0",
+	"description": "TODO:",
+	"type": "module",
+	"sideEffects": false,
+	"main": "./dist/index.js",
+	"exports": {
+		".": {
+			"default": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"dev": "tsc --build --force --watch",
+		"build": "tsc --build --force",
+		"test": "node --test --test-reporter=spec \"test/**/*.test.ts\"",
+		"start": "node ./dist/index.js"
+	},
+	"keywords": [
+		"TODO:"
+	],
+	"author": "contact@florian-lefebvre.dev",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/web-runes/routeur.git",
+		"directory": "packages/core"
+	},
+	"bugs": "https://github.com/web-runes/routeur/issues",
+	"homepage": "https://routeur.web-runes.dev",
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "^25.9.4",
+		"typescript": "7.0.1-rc"
+	}
+}
