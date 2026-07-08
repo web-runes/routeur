@@ -93,7 +93,7 @@ Strict DAG. Nothing depends on a binding or an adapter; the application composes
 | `@routeur/hono`     | Adapter: router + `BindingRuntime` → Hono handler                                           | `@routeur/core`, hono      |
 | `@routeur/node`     | Adapter: raw Node handler; hosts the `web ⇄ node` bridge                                    | `@routeur/core`            |
 | `@routeur/express`  | Adapter: Express middleware (thin over `@routeur/node`)                                         | `@routeur/node`, express   |
-| `@routeur/prerender`| Extension: `collectPaths(router)` + augments `RouteConfig` with `prerender`/`getStaticPaths` (§11) | `@routeur/core`      |
+| `@routeur/prerender`| Extension: `collectPaths(router)` + augments `RouteConfigParts` with `prerender`/`getStaticPaths` (§11) | `@routeur/core`      |
 
 `@routeur/fs` is separate from `@routeur/vite` so a future `@routeur/webpack` / `@routeur/rspack` reuses all convention logic and
 only reimplements the generate mechanics. Each binding splits into a build half (`@routeur/*/plugin`) the plugin reads,
@@ -307,7 +307,8 @@ type Params = Record<string, string | undefined>
 interface RouteRegistry {}                             // open; augmented by src/routes.gen.ts (§10)
 type ParamsFor<P extends string> = P extends keyof RouteRegistry ? RouteRegistry[P] : Params
 
-interface RouteConfig<P extends string = string> {}    // open generic; extensions augment (§7.6)
+interface RouteConfigParts<P extends string = string> {}   // open generic; each extension augments with ONE key (§7.6)
+type RouteConfig<P extends string = string> = MergeParts<RouteConfigParts<P>>   // author-facing merged config (§7.6)
 interface RouteContextExtensions {}                    // open for augmentation — see §7.2
 
 interface RouteContext<P extends string = string> extends RouteContextExtensions {
@@ -518,26 +519,39 @@ An endpoint handler wins for its method; `GET` on a component auto-renders (buff
 ### 7.6 Route config
 
 A route carries metadata as a runtime export, `config`, on its metadata module (the sibling `.ts` for an SFC
-binding, the component's own file for a colocated one). `RouteConfig<P>` is an **open generic** interface each
-extension augments — core never names a field — and it is keyed by the path so config fields that depend on params
-(like a prerender enumerator) type correctly:
+binding, the component's own file for a colocated one). Core never names a config field; extensions do — and each
+extension **owns one namespaced key** on an open generic interface `RouteConfigParts<P>`, whose *value* is that
+extension's flat contribution (and may itself be a discriminated union). The author-facing `RouteConfig<P>` is the
+**merge** of those values, so the author writes a **flat** config. Keying by the path `P` lets contributions that
+depend on params (like a prerender enumerator) type correctly.
 
 ```ts
-// @routeur/prerender augments it (§11)
+// @routeur/core — the author-facing type is derived, not augmented directly
+type UnionToIntersection<U> =                            // standard idiom
+  (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void ? I : never
+type MergeParts<T> =                                     // intersect the contribution values,
+  UnionToIntersection<{ [K in keyof T]: { v: T[K] } }[keyof T]> extends { v: infer M } ? M : never
+//  ^ each value is wrapped under `v` before UnionToIntersection so a contribution that is *itself* a
+//    union (prerender) can't flatten into its siblings; unwrapping `v` yields  base ∧ (union)  =
+//    a flat, coupled top-level union. (proven in de-risking Spike A)
+
+// @routeur/prerender augments ONE key (§11); its value is a flat discriminated union
 declare module '@routeur/core' {
-  interface RouteConfig<P extends string> {
-    prerender?:
-      | { prerender: false }
-      | { prerender: true; getStaticPaths: GetStaticPaths<P> }   // required when prerender is true
+  interface RouteConfigParts<P extends string> {
+    prerender:
+      | { prerender?: false; getStaticPaths?: never }              // off ⟹ no enumerator
+      | { prerender: true;   getStaticPaths: GetStaticPaths<P> }   // on  ⟹ enumerator required
   }
 }
-// an illustrative @routeur/auth
+// an illustrative @routeur/auth augments a DIFFERENT key — no collision
 declare module '@routeur/core' {
-  interface RouteConfig<P extends string> { auth?: { role: string } }
+  interface RouteConfigParts<P extends string> { auth: { auth?: { role: string } } }
 }
 ```
 
-Authored like the other annotations — path literal, `satisfies`:
+Each extension using its own key is what lets independent packages compose (two extensions never collide on a
+shared field), while the per-value union keeps `prerender`'s coupling. Authored like the other annotations — flat,
+path literal, `satisfies`:
 
 ```ts
 // src/routes/blog/[slug].ts
@@ -546,6 +560,9 @@ export const config = {
   getStaticPaths: () => listSlugs().map((slug) => ({ params: { slug } })),   // params.slug: string
 } satisfies RouteConfig<'/blog/[slug]'>
 ```
+
+The coupling is enforced **both** ways at author time: `prerender: true` without `getStaticPaths` is a type error,
+and `getStaticPaths` without `prerender: true` is too (the off arm pins `getStaticPaths?: never`).
 
 `config` is a **runtime** export (not statically analyzed), so it may be computed. Dispatch loads the route's
 metadata module, reads `config`, and surfaces it as `ctx.config` for components and extensions. The one consequence:
@@ -872,30 +889,32 @@ interface plus module augmentation — the same mechanism the context (§7.2) an
 
 Every per-route annotation is keyed by the path literal — `RouteContext<P>`, `RouteHandler<P>`, `RouteConfig<P>` —
 and each resolves params through `ParamsFor<P>`. So a config field like the prerender enumerator
-(`getStaticPaths: GetStaticPaths<'/blog/[slug]'>`, §11) is param-typed for free. One caveat to verify against the
-real compiler: `RouteConfig<P>` is a *generic* open interface, so each extension must declare its augmentation with
-the identical `<P extends string>` signature for declaration merging to compose — finickier than the non-generic
-`RouteContextExtensions` merge.
+(`getStaticPaths: GetStaticPaths<'/blog/[slug]'>`, §11) is param-typed for free. The config surface is the
+*generic* open interface `RouteConfigParts<P>`, so each extension must declare its augmentation with the identical
+`<P extends string>` signature for declaration merging to compose — finickier than the non-generic
+`RouteContextExtensions` merge, and **verified in de-risking Spike A** (generic augmentation composes across
+packages; the `MergeParts` derivation of §7.6 keeps each contribution's discriminated union coupled).
 
 ---
 
 ## 11. Prerendering (`@routeur/prerender`)
 
 Prerendering is an **extension**, not a core feature — core has no build step, no `getStaticPaths`, no SSG code.
-`@routeur/prerender` provides two things: it augments `RouteConfig<P>` (§7.6) with the `prerender` field, and it exports
-a standalone `collectPaths(router)`.
+`@routeur/prerender` provides two things: it augments `RouteConfigParts<P>` (§7.6) with the `prerender` key, and it
+exports a standalone `collectPaths(router)`.
 
 ### 11.1 Config coupling (typed at author time)
 
-`prerender` is a discriminated union, so the compiler enforces "prerender ⟹ enumerator" at the config site — not as
-a build error, but as a type error the moment you write it:
+The `prerender` key's value is a discriminated union, so the compiler enforces "prerender ⟺ enumerator" at the
+config site — not as a build error, but as a type error the moment you write it. It merges (§7.6) into a *flat*
+top-level union on `config`:
 
 ```ts
 declare module '@routeur/core' {
-  interface RouteConfig<P extends string> {
-    prerender?:
-      | { prerender: false }
-      | { prerender: true; getStaticPaths: GetStaticPaths<P> }   // omit getStaticPaths → type error
+  interface RouteConfigParts<P extends string> {
+    prerender:
+      | { prerender?: false; getStaticPaths?: never }              // omit both / prerender:false → no enumerator
+      | { prerender: true;   getStaticPaths: GetStaticPaths<P> }   // prerender:true → enumerator required
   }
 }
 ```

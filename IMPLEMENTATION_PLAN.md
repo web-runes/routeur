@@ -46,24 +46,30 @@ Package build order (topological): `core` → (`fs`, `react`, `vue`, `hono`, `no
 
 ## 2. De-risking spikes (do first, ~1–2 days)
 
-Small throwaway TS files that prove the uncertain type mechanics. Each has a known fallback if it fails.
+Small throwaway TS files that prove the uncertain type mechanics. Each has a known fallback if it fails. Live in
+`spikes/` (pure-TS spikes typecheck with the workspace `tsc`; `spikes/vue/` is an isolated Vue package).
 
-- [ ] **Spike A — generic interface augmentation merges.** Two fake packages both
-      `declare module '@routeur/core' { interface RouteConfig<P extends string> { … } }` with the identical
-      `<P extends string>` signature; confirm declaration merging composes their members and `RouteConfig<'/x'>`
-      sees both. *Fallback if it doesn't compose cleanly:* a single non-generic `RouteConfig` bag plus a separate
-      generic helper for the param-dependent field.
-- [ ] **Spike B — SFC generic props resolve.** `defineProps<RouteContext<'/blog/[slug]'>>()` in a real `.vue`
-      compiled with `vue-tsc`; confirm the indexed access into an augmented `RouteRegistry` resolves to
-      `{ slug: string }`. Repeat the check for an Astro component's `Props` if Astro is a target binding later.
-      *Fallback:* the plugin also emits a concrete named type per route to import.
-- [ ] **Spike C — Vue prop mutation under SSR.** Confirm `props.response.status = 404` and
-      `props.response.headers.set(...)` mutate through `shallowReactive` props during `renderToString` without a
-      readonly warning (spec §7.1). *Fallback:* pass `response` via `provide`/`inject` instead of props.
-- [ ] **Spike D — `ParamsOf<P>` template-literal type.** Prove `[x]→{x:string}`, `[...x]→{x:string|undefined}`,
-      `post-[id]→{id:string}`, static→`{}`, and composition across `/`-separated segments (spec §10, §5.3).
+- [x] **Spike A — generic interface augmentation merges.** ✅ **Green, and the design improved.** Confirmed two
+      independent packages can augment a *generic* open interface with the identical `<P extends string>` signature
+      and compose. The original nested-field shape (`config.prerender.prerender`) was replaced: each extension now
+      augments `RouteConfigParts<P>` with **one namespaced key** whose value is its flat contribution (possibly a
+      discriminated union), and `RouteConfig<P> = MergeParts<RouteConfigParts<P>>` flattens them. This yields a
+      **flat** authored config (`{ prerender: true, getStaticPaths, auth }`), composes independent extensions
+      without collision, keeps `prerender ⟺ getStaticPaths` coupled *both ways*, and resolves params for `P`. The
+      fallback (non-generic bag) was **not** needed. Folded into spec §7.6, §10, §11.1.
+- [x] **Spike B — SFC generic props resolve.** ✅ **Green.** `defineProps<RouteContext<'/blog/[slug]'>>()` in a real
+      `.vue` under `vue-tsc` resolves the indexed access into the augmented `RouteRegistry` to `{ slug: string }`;
+      an unknown param is a type error. (Astro `Props` check deferred — Astro is not a v1 binding.) Fallback
+      (per-route named type) not needed.
+- [x] **Spike C — Vue prop mutation under SSR.** ✅ **Green.** `props.response.status = 404` and
+      `props.response.headers.set(...)` (nested mutation of `shallowReactive` props) during `renderToString` emit
+      **no** warning and propagate back to the caller's `response` object. Fallback (`provide`/`inject`) not needed.
+- [x] **Spike D — `ParamsOf<P>` template-literal type.** ✅ **Green.** Proved `[x]→{x:string}`,
+      `[...x]→{x:string|undefined}`, `post-[id]→{id:string}`, static→`{}`, group segments contribute nothing, and
+      composition across `/`-separated segments (spec §10, §5.3).
 
-Exit criteria: all four green, or fallbacks chosen and folded back into the spec.
+Exit criteria: **met — all four green.** No fallbacks required; Spike A refined the config-typing mechanism
+(spec §7.6). The spikes remain in `spikes/` as living evidence; delete or fold into the Phase 1 type-tests later.
 
 ---
 
@@ -202,8 +208,9 @@ route `import()`); HMR add/remove regenerates; typegen fixture typechecks with n
 
 ## 11. Risks & things to settle
 
-- **Generic typing (spikes A/B/D).** If `RouteConfig<P>` cross-package merge or SFC generic-props resolution
-      fails, the public typing API changes; that's why they're spikes, not mid-build discoveries.
+- ~~**Generic typing (spikes A/B/D).**~~ **Resolved** — all three green (§2). Cross-package generic merge composes
+      (via `RouteConfigParts<P>` + `MergeParts`), SFC generic-props resolve under `vue-tsc`, and `ParamsOf<P>`
+      holds. The public typing API is settled; no fallback taken.
 - **Code splitting via generated `import()`.** The whole code-splitting story rests on Rollup splitting the thunks
       in `routes.gen.ts`; assert it in a real build early in Phase 4, not at the end.
 - **Prerender validation is lazy** (spec §11.2) — by design, an app that never prerenders won't hear about a
