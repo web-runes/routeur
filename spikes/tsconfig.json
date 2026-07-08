@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": [],
+    "allowImportingTsExtensions": true
+  },
+  "include": ["spike-a.ts", "spike-d.ts", "fake-core.d.ts", "assert.ts", "spike-a-ext-prerender.ts", "spike-a-ext-auth.ts"]
+}
