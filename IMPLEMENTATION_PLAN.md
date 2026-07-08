@@ -78,35 +78,35 @@ Exit criteria: **met — all four green.** No fallbacks required; Spike A refine
 The whole runtime spine. No framework or fs deps.
 
 **IR & parsing**
-- [ ] Segment IR (spec §4) — tagged union: one `Part[]` per `normal` segment (mixed = multiple parts), plus
+- [x] Segment IR (spec §4) — tagged union: one `Part[]` per `normal` segment (mixed = multiple parts), plus
       `spread`; `Part` is `{ kind:'static'; name }` | `{ kind:'param'; name }`.
-- [ ] String-pattern parser: `/blog/[slug]`, `/files/[...path]`, `/(shop)/cart`, `/post-[id]`, index → segments.
+- [x] String-pattern parser: `/blog/[slug]`, `/files/[...path]`, `/(shop)/cart`, `/post-[id]`, index → segments.
       Reject illegal mixes (`pre-[...x]`) per spec §4.1.
-- [ ] `defineRoutes` (manual API, spec §6.1): parse + score authored entries into `RouteRecord`s.
+- [x] `defineRoutes` (manual API, spec §6.1): parse + score authored entries into `RouteRecord`s.
 
 **Matching & ranking (spec §5)**
-- [ ] Per-segment specificity scoring `static(3) > mixed(2) > param(1) > spread(0)`; lexicographic comparator;
+- [x] Per-segment specificity scoring `static(3) > mixed(2) > param(1) > spread(0)`; lexicographic comparator;
       index tie-break.
-- [ ] Sorted-list matcher (compile a matcher per route; linear scan). *Trie is explicitly deferred.*
-- [ ] Trailing-slash normalization: strip one trailing slash, preserve root `/` (spec §5.2).
-- [ ] Param extraction, incl. spread = joined string / `undefined` at base (spec §5.3, Astro semantics).
+- [x] Sorted-list matcher (compile a matcher per route; linear scan). *Trie is explicitly deferred.*
+- [x] Trailing-slash normalization: strip one trailing slash, preserve root `/` (spec §5.2).
+- [x] Param extraction, incl. spread = joined string / `undefined` at base (spec §5.3, Astro semantics).
 
 **Dispatch & pipeline (spec §7)**
-- [ ] `RouteContext` (data-only, `RouteContextExtensions` open), `response` object, `redirect`/`error` +
+- [x] `RouteContext` (data-only, `RouteContextExtensions` open), `response` object, `redirect`/`error` +
       `Redirect`/`HttpError` sentinels.
-- [ ] Terminal `dispatch(route, binding, ctx)`: method resolution, component-is-GET, buffered render, fold
+- [x] Terminal `dispatch(route, binding, ctx)`: method resolution, component-is-GET, buffered render, fold
       `ctx.response`, 405 + `Allow`, catch redirect/error (spec §7.5).
-- [ ] `createRouter(manifest, { extensions })` → `Router` with `match`, `routes`, `handle` (config-load →
+- [x] `createRouter(manifest, { extensions })` → `Router` with `match`, `routes`, `handle` (config-load →
       extension onion → terminal dispatch) (spec §7.7).
-- [ ] `RouteConfig` open generic; `Extension` type; config read off the loaded metadata module → `ctx.config`.
+- [x] `RouteConfig` open generic; `Extension` type; config read off the loaded metadata module → `ctx.config`.
 
 **Types (definitions here; population in Phase 4)**
-- [ ] `RouteRegistry` (open), `ParamsFor`, `RouteContext<P>`, `RouteHandler<P>`, `RouteConfig<P>`, `href` (spec §10).
+- [x] `RouteRegistry` (open), `ParamsFor`, `RouteContext<P>`, `RouteHandler<P>`, `RouteConfig<P>`, `href` (spec §10).
 
 **Tests**
-- [ ] Unit: parser table, ranking order, matcher (static/param/spread/mixed/groups/index, slash-insensitive,
+- [x] Unit: parser table, ranking order, matcher (static/param/spread/mixed/groups/index, slash-insensitive,
       spread base), dispatch (method table, status folding, redirect/error, 405).
-- [ ] Type: `ParamsOf`, `RouteContext<'/x'>` narrowing, `href` rejection of bad params.
+- [x] Type: `ParamsOf`, `RouteContext<'/x'>` narrowing, `href` rejection of bad params.
 
 **Exit:** `createRouter([...defineRoutes(...)])` matches and dispatches against a hand-written manifest; a fake
 binding renders. No fs, no plugin yet.
