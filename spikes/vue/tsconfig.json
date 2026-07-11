@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "lib": ["ESNext", "DOM"],
+    "types": [],
+    "jsx": "preserve"
+  },
+  "include": ["BlogPost.vue", "routeur-core.d.ts", "routes.gen.d.ts"]
+}

@@ -1,6 +1,7 @@
 packages:
   - docs
   - examples/*
+  - spikes/**
   - packages/*
 allowBuilds:
   esbuild: false
